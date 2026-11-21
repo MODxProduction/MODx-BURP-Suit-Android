@@ -33,7 +33,10 @@ fun DnsCaptureScreen(modifier: Modifier = Modifier) {
         val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
         @Suppress("DEPRECATION")
         context.packageManager.queryIntentActivities(intent, 0)
-            .mapNotNull { it.activityInfo?.let { info -> CaptureApp(it.loadLabel(context.packageManager).toString(), info.packageName) } }
+            .mapNotNull { resolveInfo ->
+                val activityInfo = resolveInfo.activityInfo ?: return@mapNotNull null
+                CaptureApp(resolveInfo.loadLabel(context.packageManager).toString(), activityInfo.packageName)
+            }
             .distinctBy { it.packageName }.sortedBy { it.label.lowercase(Locale.ROOT) }
     }
     val selected = remember { mutableStateListOf<String>() }
