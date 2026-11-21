@@ -9,6 +9,7 @@ import java.net.URI
 import java.nio.charset.Charset
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 
 data class HttpExchange(
     val id: Long,
@@ -24,6 +25,7 @@ data class HttpExchange(
 
 object HttpEngine {
     private const val MAX_RESPONSE_BYTES = 1024 * 1024
+    private val nextId = AtomicLong(1)
     private val client: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .connectTimeout(15, TimeUnit.SECONDS)
@@ -96,7 +98,7 @@ object HttpEngine {
             val charset = response.body?.contentType()?.charset(StandardCharsets.UTF_8) ?: StandardCharsets.UTF_8
             val responseText = output.toByteArray().toString(charset)
             return HttpExchange(
-                System.currentTimeMillis(), method.uppercase(), url, response.code,
+                nextId.getAndIncrement(), method.uppercase(), url, response.code,
                 response.message, elapsed, headers, responseText, truncated
             )
         }
