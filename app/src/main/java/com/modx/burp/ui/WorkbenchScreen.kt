@@ -176,7 +176,7 @@ private fun HistoryScreen(modifier: Modifier, history: androidx.compose.runtime.
     var exportName by remember { mutableStateOf("MODx_traffic.json") }
     var exportError by remember { mutableStateOf<String?>(null) }
     val exportLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument(exportMime)
+        ActivityResultContracts.CreateDocument("*/*")
     ) { uri ->
         if (uri != null) {
             try {
