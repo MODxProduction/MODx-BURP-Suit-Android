@@ -3,6 +3,15 @@ package com.modx.burp.ui
 import android.text.Html
 import android.text.TextUtils
 import android.util.Base64
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import org.json.JSONArray
+import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -159,20 +168,70 @@ private fun PassiveChecks(response: HttpExchange) {
 
 @Composable
 private fun HistoryScreen(modifier: Modifier, history: androidx.compose.runtime.snapshots.SnapshotStateList<HttpExchange>) {
+    val context = LocalContext.current
     var selected by remember { mutableStateOf<HttpExchange?>(null) }
+    var editedBody by remember { mutableStateOf("") }
+    var exportText by remember { mutableStateOf("") }
+    var exportMime by remember { mutableStateOf("application/json") }
+    var exportName by remember { mutableStateOf("MODx_traffic.json") }
+    var exportError by remember { mutableStateOf<String?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument(exportMime)
+    ) { uri ->
+        if (uri != null) {
+            try {
+                context.contentResolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(exportText.toByteArray(Charsets.UTF_8))
+                } ?: throw IllegalStateException("File create nahi ho saki.")
+                exportError = null
+            } catch (failure: Exception) {
+                exportError = failure.message ?: "Export failed."
+            }
+        }
+    }
+
+    fun export(format: String) {
+        val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+        exportMime = if (format == "json") "application/json" else "text/plain"
+        exportName = "MODx_${stamp}_traffic.$format"
+        exportText = if (format == "json") {
+            val array = JSONArray()
+            history.forEach { item ->
+                array.put(JSONObject().apply {
+                    put("id", item.id); put("method", item.method); put("url", item.url)
+                    put("statusCode", item.statusCode); put("statusMessage", item.statusMessage)
+                    put("durationMs", item.durationMs); put("responseHeaders", item.responseHeaders)
+                    put("responseBody", item.responseBody); put("truncated", item.truncated)
+                })
+            }
+            array.toString(2)
+        } else {
+            history.joinToString("\n\n" + "=".repeat(72) + "\n\n") { item ->
+                "TIME/ID: ${item.id}\n${item.method} ${item.url}\nSTATUS: ${item.statusCode} ${item.statusMessage}\nTIME: ${item.durationMs} ms\n\n--- RESPONSE HEADERS ---\n${item.responseHeaders}\n\n--- RESPONSE BODY ---\n${item.responseBody}" +
+                    if (item.truncated) "\n\n[Body truncated at 1 MB]" else ""
+            }
+        }
+        exportLauncher.launch(exportName)
+    }
+
     Column(modifier.fillMaxSize().padding(16.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Request history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("Traffic history", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             TextButton(onClick = { history.clear(); selected = null }, enabled = history.isNotEmpty()) { Text("CLEAR") }
         }
-        Text("Last 100 requests in this app session.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+        Text("Saved locally for this app session • max 100 entries", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = { export("json") }, enabled = history.isNotEmpty()) { Text("EXPORT JSON") }
+            OutlinedButton(onClick = { export("txt") }, enabled = history.isNotEmpty()) { Text("EXPORT TXT") }
+        }
+        exportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         if (history.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No requests yet. Send one from Repeater.") }
         } else {
             LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(vertical = 8.dp)) {
                 items(history, key = { it.id }) { item ->
                     ListItem(
-                        modifier = Modifier.clickable { selected = item },
+                        modifier = Modifier.clickable { selected = item; editedBody = item.responseBody },
                         headlineContent = { Text("${item.method}  •  ${item.statusCode}", fontWeight = FontWeight.Bold) },
                         supportingContent = { Text(item.url, maxLines = 2, overflow = TextOverflow.Ellipsis) },
                         trailingContent = { Text("${item.durationMs} ms", style = MaterialTheme.typography.labelSmall) }
@@ -185,18 +244,32 @@ private fun HistoryScreen(modifier: Modifier, history: androidx.compose.runtime.
     selected?.let { item ->
         AlertDialog(
             onDismissRequest = { selected = null },
-            title = { Text("${item.method} • ${item.statusCode}") },
+            title = { Text("Saved response editor") },
             text = {
-                Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(item.url)
-                    Text("Response headers", fontWeight = FontWeight.Bold)
+                Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${item.method} • ${item.statusCode}", fontWeight = FontWeight.Bold)
+                    SelectionContainer { Text(item.url, style = MaterialTheme.typography.bodySmall) }
+                    Text("Response headers (read-only)", fontWeight = FontWeight.Bold)
                     SelectionContainer { Text(item.responseHeaders, style = MaterialTheme.typography.bodySmall) }
-                    Text("Response body", fontWeight = FontWeight.Bold)
-                    SelectionContainer { Text(item.responseBody, style = MaterialTheme.typography.bodySmall) }
-                    if (item.truncated) Text("Body truncated at 1 MB.")
+                    Text("Edit saved response body", fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = editedBody,
+                        onValueChange = { editedBody = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 7,
+                        label = { Text("Local response copy") }
+                    )
+                    Text("This edits only the saved local copy; it does not alter traffic in another app.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
                 }
             },
-            confirmButton = { TextButton(onClick = { selected = null }) { Text("CLOSE") } }
+            confirmButton = {
+                TextButton(onClick = {
+                    val index = history.indexOfFirst { it.id == item.id }
+                    if (index >= 0) history[index] = item.copy(responseBody = editedBody)
+                    selected = null
+                }) { Text("SAVE EDIT") }
+            },
+            dismissButton = { TextButton(onClick = { selected = null }) { Text("CLOSE") } }
         )
     }
 }
