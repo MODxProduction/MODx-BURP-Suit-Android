@@ -12,6 +12,7 @@ import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -66,12 +67,14 @@ fun WorkbenchScreen() {
             }
         }
     ) { padding ->
-        when (tab) {
-            "Repeater" -> RepeaterScreen(Modifier.padding(padding), history)
-            "Capture" -> DnsCaptureScreen(Modifier.padding(padding))
-            "History" -> HistoryScreen(Modifier.padding(padding), history)
-            "Decoder" -> DecoderScreen(Modifier.padding(padding))
-            else -> AboutScreen(Modifier.padding(padding))
+        AnimatedContent(targetState = tab, label = "MODx-workspace-transition") { currentTab ->
+            when (currentTab) {
+                "Repeater" -> RepeaterScreen(Modifier.padding(padding), history)
+                "Capture" -> DnsCaptureScreen(Modifier.padding(padding))
+                "History" -> HistoryScreen(Modifier.padding(padding), history)
+                "Decoder" -> DecoderScreen(Modifier.padding(padding))
+                else -> AboutScreen(Modifier.padding(padding))
+            }
         }
     }
 }
