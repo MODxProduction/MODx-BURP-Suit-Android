@@ -39,6 +39,7 @@ fun DnsCaptureScreen(modifier: Modifier = Modifier) {
     val selected = remember { mutableStateListOf<String>() }
     var records by remember { mutableStateOf<List<String>>(emptyList()) }
     var active by remember { mutableStateOf(false) }
+    var pendingLaunch by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
 
     fun reload() {
@@ -52,9 +53,7 @@ fun DnsCaptureScreen(modifier: Modifier = Modifier) {
         val serviceIntent = Intent(context, DnsCaptureService::class.java)
             .putStringArrayListExtra(DnsCaptureService.EXTRA_PACKAGES, ArrayList(selected))
         ContextCompat.startForegroundService(context, serviceIntent)
-        selected.firstOrNull()?.let { packageName ->
-            context.packageManager.getLaunchIntentForPackage(packageName)?.let { context.startActivity(it) }
-        }
+        pendingLaunch = true
         message = "DNS metadata capture requested. Android notification mein service status dekhein."
         reload()
     }
@@ -69,6 +68,15 @@ fun DnsCaptureScreen(modifier: Modifier = Modifier) {
                 context.contentResolver.openOutputStream(uri)?.use { it.write(records.asReversed().joinToString("\n", postfix = "\n").toByteArray()) }
                     ?: error("Export file open nahi hui")
             }.onSuccess { message = "DNS log export ho gaya." }.onFailure { message = it.message ?: "Export failed." }
+        }
+    }
+
+    LaunchedEffect(active) {
+        if (active && pendingLaunch) {
+            pendingLaunch = false
+            selected.firstOrNull()?.let { packageName ->
+                context.packageManager.getLaunchIntentForPackage(packageName)?.let { context.startActivity(it) }
+            }
         }
     }
 
