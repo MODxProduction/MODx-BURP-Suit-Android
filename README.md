@@ -9,6 +9,9 @@ A native Android HTTP inspection workbench inspired by Burp Suite workflows. Ind
 - Response status, headers, body and elapsed time
 - Session-only in-memory HTTP history with detail view and clear action
 - Local URL, Base64 and HTML encode/decode utilities
+- User-started Android VpnService DNS monitor for explicitly selected launcher apps
+- DNS query forwarding to 1.1.1.1 with locally stored domain, query-type, response-code and timestamp metadata
+- DNS capture JSONL export; the VPN routes only its synthetic DNS resolver address, not general HTTP/HTTPS traffic
 - Passive response-header and cookie-attribute observations (heuristic checks; not a vulnerability verdict)
 
 ## Not yet implemented
@@ -18,7 +21,7 @@ A native Android HTTP inspection workbench inspired by Burp Suite workflows. Ind
 - Persistent encrypted history and session export/import
 - Device-wide HTTP proxy / VPN capture
 
-Do not treat a listed planned feature as available until it is implemented and verified. Android VPN and TLS inspection have OS-level limitations; no silent traffic capture or certificate installation is intended.
+Do not treat a listed planned feature as available until it is implemented and verified. The VPN milestone is DNS-only: it forwards DNS queries for selected apps and records domain metadata. It does not inspect arbitrary packet payloads, intercept HTTP requests, decrypt HTTPS, or bypass certificate pinning. VPN use requires Android system consent and a persistent foreground notification.
 
 ## Build
 Open in Android Studio with JDK 17 and Android SDK 35. CI workflow runs `gradle :app:assembleDebug`.
