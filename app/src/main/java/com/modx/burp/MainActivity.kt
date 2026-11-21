@@ -119,6 +119,16 @@ private fun RepeaterScreen(modifier: Modifier, history: androidx.compose.runtime
             Surface(tonalElevation = 2.dp, modifier = Modifier.fillMaxWidth()) {
                 SelectableText(exchange.responseBody.ifBlank { "(empty response)" }, Modifier.padding(10.dp))
             }
+            HorizontalDivider()
+            Text("Passive security observations", style = MaterialTheme.typography.titleMedium)
+            Text("Heuristic checks only; not a vulnerability verdict.", color = MaterialTheme.colorScheme.secondary, style = MaterialTheme.typography.bodySmall)
+            analyzeResponse(exchange).forEach { finding ->
+                ListItem(
+                    headlineContent = { Text(finding.first) },
+                    supportingContent = { Text(finding.second) },
+                    leadingContent = { Text(if (finding.third) "!" else "✓", color = if (finding.third) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
+                )
+            }
         }
     }
 }
@@ -159,6 +169,48 @@ private fun executeRequest(method: String, url: String, rawHeaders: String, body
         val responseBody = response.body?.string().orEmpty()
         return CapturedExchange(method, url, response.code, elapsed, responseHeaders, responseBody)
     }
+}
+
+private fun analyzeResponse(exchange: CapturedExchange): List<Triple<String, String, Boolean>> {
+    val headers = exchange.responseHeaders.lineSequence()
+        .mapNotNull { line ->
+            val split = line.indexOf(':')
+            if (split <= 0) null else line.substring(0, split).trim().lowercase() to line.substring(split + 1).trim()
+        }.groupBy({ it.first }, { it.second })
+    val findings = mutableListOf<Triple<String, String, Boolean>>()
+    val checks = listOf(
+        "strict-transport-security" to "HSTS",
+        "content-security-policy" to "Content-Security-Policy",
+        "x-content-type-options" to "X-Content-Type-Options",
+        "referrer-policy" to "Referrer-Policy",
+        "permissions-policy" to "Permissions-Policy"
+    )
+    val isHttps = exchange.url.startsWith("https://", ignoreCase = true)
+    if (!isHttps) findings += Triple("HTTP connection", "Response was requested over unencrypted HTTP; use HTTPS where supported.", true)
+    checks.forEach { (key, label) ->
+        val present = headers[key].orEmpty().any { it.isNotBlank() }
+        if (!present && (key != "strict-transport-security" || isHttps)) {
+            findings += Triple("$label not observed", "The response did not include this header. Whether it is needed depends on the application.", true)
+        } else if (present) {
+            findings += Triple("$label present", headers[key].orEmpty().joinToString(", "), false)
+        }
+    }
+    headers["set-cookie"].orEmpty().forEachIndexed { index, cookie ->
+        val lower = cookie.lowercase()
+        val missing = listOf("secure", "httponly", "samesite").filter { flag ->
+            when (flag) {
+                "samesite" -> !lower.contains("samesite=")
+                else -> !lower.split(';').any { it.trim() == flag }
+            }
+        }
+        findings += if (missing.isEmpty()) {
+            Triple("Set-Cookie #${index + 1} flags observed", "Secure, HttpOnly and SameSite attributes are present.", false)
+        } else {
+            Triple("Set-Cookie #${index + 1} review", "Missing or unobserved attributes: ${missing.joinToString()}. Review cookie requirements.", true)
+        }
+    }
+    if (findings.isEmpty()) findings += Triple("No observations", "No common response-header checks were applicable.", false)
+    return findings
 }
 
 @Composable
