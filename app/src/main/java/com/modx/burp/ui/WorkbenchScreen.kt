@@ -28,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.selection.SelectionContainer
+import com.modx.burp.capture.DnsCaptureScreen
 import com.modx.burp.core.HttpEngine
 import com.modx.burp.core.HttpExchange
 import kotlinx.coroutines.CancellationException
@@ -38,7 +39,7 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
-private val tabs = listOf("Repeater", "History", "Decoder", "About")
+private val tabs = listOf("Repeater", "Capture", "History", "Decoder", "About")
 private val methods = listOf("GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS")
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,6 +68,7 @@ fun WorkbenchScreen() {
     ) { padding ->
         when (tab) {
             "Repeater" -> RepeaterScreen(Modifier.padding(padding), history)
+            "Capture" -> DnsCaptureScreen(Modifier.padding(padding))
             "History" -> HistoryScreen(Modifier.padding(padding), history)
             "Decoder" -> DecoderScreen(Modifier.padding(padding))
             else -> AboutScreen(Modifier.padding(padding))
