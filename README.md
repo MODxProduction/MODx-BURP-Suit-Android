@@ -9,13 +9,14 @@ A native Android HTTP inspection workbench inspired by Burp Suite workflows. Ind
 - Response status, headers, body and elapsed time
 - Session-only in-memory HTTP history with detail view and clear action
 - Local URL, Base64 and HTML encode/decode utilities
+- Passive response-header and cookie-attribute observations (heuristic checks; not a vulnerability verdict)
 
 ## Not yet implemented
 - Device-wide HTTP proxy / VPN capture
 - HTTPS interception
 - WebSocket frame inspection
 - Persistent encrypted history and session export/import
-- Passive response security analysis
+- Device-wide HTTP proxy / VPN capture
 
 Do not treat a listed planned feature as available until it is implemented and verified. Android VPN and TLS inspection have OS-level limitations; no silent traffic capture or certificate installation is intended.
 
